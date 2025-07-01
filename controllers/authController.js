@@ -1,9 +1,9 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Generar JWT
-const generarToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET || 'tu_secreto_jwt', {
+// Generar JWT incluyendo el rol
+const generarToken = (id, rol) => {
+    return jwt.sign({ id, rol }, process.env.JWT_SECRET || 'tu_secreto_jwt', {
         expiresIn: '30d'
     });
 };
@@ -35,8 +35,8 @@ exports.login = async (req, res) => {
         usuario.ultimoAcceso = new Date();
         await usuario.save();
 
-        // Generar token
-        const token = generarToken(usuario._id);
+        // Generar token incluyendo el rol
+        const token = generarToken(usuario._id, usuario.rol);
 
         res.status(200).json({
             success: true,
@@ -79,8 +79,8 @@ exports.registro = async (req, res) => {
             rol: rol || 'vendedor'
         });
 
-        // Generar token
-        const token = generarToken(usuario._id);
+        // Generar token incluyendo el rol
+        const token = generarToken(usuario._id, usuario.rol);
 
         res.status(201).json({
             success: true,

@@ -18,7 +18,7 @@ exports.protect = async (req, res, next) => {
 
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET || 'tu_secreto_jwt');
-            req.user = await User.findById(decoded.id);
+            req.user = { id: decoded.id, rol: decoded.rol };
             next();
         } catch (err) {
             return res.status(401).json({
