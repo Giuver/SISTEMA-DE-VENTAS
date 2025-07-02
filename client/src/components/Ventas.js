@@ -7,6 +7,9 @@ import ventaService from '../services/ventaService';
 import userService from '../services/userService';
 import productService from '../services/productService';
 import authService from '../services/authService';
+import { useToast } from './ToastNotification';
+import { TableSkeleton, LoadingSpinner } from './LazyLoader';
+import ConfirmDialog from './ConfirmDialog';
 
 const estados = [
     { value: '', label: 'Todos los estados' },
@@ -23,11 +26,13 @@ const metodosPago = [
 
 const VentaModal = ({ open, onClose, onSave, initialData, vendedores }) => {
     const usuarioActual = authService.getCurrentUser()?.usuario;
+    const { error: showError } = useToast();
     const [form, setForm] = useState({ cliente: '', vendedor: usuarioActual?.id || '', productos: [], total: 0, estado: 'completada', metodoPago: '' });
     const [error, setError] = useState('');
     const [productos, setProductos] = useState([]);
     const [productoSeleccionado, setProductoSeleccionado] = useState(null);
     const [cantidad, setCantidad] = useState(1);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (initialData) setForm({ ...initialData });
@@ -40,10 +45,13 @@ const VentaModal = ({ open, onClose, onSave, initialData, vendedores }) => {
 
     const cargarProductos = async () => {
         try {
+            setLoading(true);
             const data = await productService.getAll();
             setProductos(data.filter(p => p.stock > 0));
         } catch (err) {
-            setError('Error al cargar productos');
+            showError('Error al cargar productos');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -97,6 +105,14 @@ const VentaModal = ({ open, onClose, onSave, initialData, vendedores }) => {
         setError('');
         onSave({ ...form, vendedor: usuarioActual?.id, cliente: form.cliente || undefined });
     };
+
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
+                <LoadingSpinner message="Cargando productos..." />
+            </Box>
+        );
+    }
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -224,47 +240,70 @@ const VentaModal = ({ open, onClose, onSave, initialData, vendedores }) => {
 };
 
 const Ventas = () => {
+    const { success, error, info } = useToast();
     const [ventas, setVentas] = useState([]);
     const [resumen, setResumen] = useState({ ventasHoy: 0, transaccionesHoy: 0, promedio: 0, topVendedor: null });
     const [busqueda, setBusqueda] = useState('');
     const [estadoFiltro, setEstadoFiltro] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
     const [modalData, setModalData] = useState(null);
-    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [vendedores, setVendedores] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [deleteDialog, setDeleteDialog] = useState({ open: false, venta: null });
 
     useEffect(() => {
-        cargarVentas();
-        cargarResumen();
-        cargarVendedores();
+        cargarDatos();
     }, []);
+
+    const cargarDatos = async () => {
+        try {
+            setLoading(true);
+            await Promise.all([
+                cargarVentas(),
+                cargarResumen(),
+                cargarVendedores()
+            ]);
+        } catch (err) {
+            error('Error al cargar datos iniciales');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const cargarVentas = async () => {
         try {
             const data = await ventaService.getAll();
             setVentas(data);
-        } catch {
-            setSnackbar({ open: true, message: 'Error al cargar ventas', severity: 'error' });
+        } catch (err) {
+            error('Error al cargar ventas');
         }
     };
+
     const cargarResumen = async () => {
         try {
             const data = await ventaService.getResumen();
             setResumen(data);
-        } catch { }
+        } catch (err) {
+            error('Error al cargar resumen');
+        }
     };
+
     const cargarVendedores = async () => {
         try {
             const data = await userService.getAll();
             setVendedores(data.filter(u => u.rol === 'vendedor'));
-        } catch { }
+        } catch (err) {
+            error('Error al cargar vendedores');
+        }
     };
 
     const handleBuscar = e => setBusqueda(e.target.value);
     const handleEstadoFiltro = e => setEstadoFiltro(e.target.value);
+
     const handleLimpiarFiltros = () => {
         setBusqueda('');
         setEstadoFiltro('');
+        info('Filtros limpiados');
     };
 
     const ventasFiltradas = ventas.filter(v =>
@@ -280,43 +319,66 @@ const Ventas = () => {
         setModalData(null);
         setModalOpen(true);
     };
+
     const handleOpenEdit = (venta) => {
         setModalData(venta);
         setModalOpen(true);
     };
+
     const handleCloseModal = () => {
         setModalOpen(false);
     };
+
     const handleSaveVenta = async (data) => {
         try {
             if (modalData) {
                 await ventaService.update(modalData._id, data);
-                setSnackbar({ open: true, message: 'Venta actualizada', severity: 'success' });
+                success('Venta actualizada exitosamente');
             } else {
                 await ventaService.create(data);
-                setSnackbar({ open: true, message: 'Venta registrada', severity: 'success' });
+                success('Venta registrada exitosamente');
             }
             setModalOpen(false);
-            cargarVentas();
-            cargarResumen();
-        } catch {
-            setSnackbar({ open: true, message: 'Error al guardar venta', severity: 'error' });
+            await cargarDatos();
+        } catch (err) {
+            const errorMessage = err.response?.data?.message || 'Error al guardar venta';
+            error(errorMessage);
         }
     };
-    const handleOpenDelete = async (venta) => {
-        if (!window.confirm('¿Eliminar esta venta?')) return;
+
+    const handleOpenDelete = (venta) => {
+        setDeleteDialog({ open: true, venta });
+    };
+
+    const handleConfirmDelete = async () => {
         try {
-            await ventaService.remove(venta._id);
-            setSnackbar({ open: true, message: 'Venta eliminada', severity: 'success' });
-            cargarVentas();
-            cargarResumen();
-        } catch {
-            setSnackbar({ open: true, message: 'Error al eliminar venta', severity: 'error' });
+            await ventaService.remove(deleteDialog.venta._id);
+            success('Venta eliminada exitosamente');
+            setDeleteDialog({ open: false, venta: null });
+            await cargarDatos();
+        } catch (err) {
+            const errorMessage = err.response?.data?.message || 'Error al eliminar venta';
+            error(errorMessage);
         }
     };
-    const handleCloseSnackbar = () => {
-        setSnackbar({ ...snackbar, open: false });
+
+    const handleCloseDeleteDialog = () => {
+        setDeleteDialog({ open: false, venta: null });
     };
+
+    if (loading) {
+        return (
+            <Box sx={{ p: 2 }}>
+                <Typography variant="h4" fontWeight={700} gutterBottom>
+                    Gestión de Ventas
+                </Typography>
+                <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                    Administra todas las transacciones de venta
+                </Typography>
+                <TableSkeleton rows={8} columns={7} />
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{ p: 2 }}>
@@ -481,12 +543,12 @@ const Ventas = () => {
                 initialData={modalData}
                 vendedores={vendedores}
             />
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={3000}
-                onClose={handleCloseSnackbar}
-                message={snackbar.message}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            <ConfirmDialog
+                open={deleteDialog.open}
+                onClose={handleCloseDeleteDialog}
+                onConfirm={handleConfirmDelete}
+                title="Confirmar Eliminación"
+                content={`¿Estás seguro de que quieres eliminar esta venta? Esta acción no se puede deshacer.`}
             />
         </Box>
     );

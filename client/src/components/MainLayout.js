@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, CssBaseline, Toolbar, AppBar, Typography, Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton } from '@mui/material';
+import { Box, CssBaseline, Typography, Drawer, List, ListItem, ListItemIcon, ListItemText, IconButton } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PeopleIcon from '@mui/icons-material/People';
@@ -8,6 +8,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import CategoryIcon from '@mui/icons-material/Category';
 import MenuIcon from '@mui/icons-material/Menu';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
 import authService from '../services/authService';
 import Tooltip from '@mui/material/Tooltip';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -17,12 +18,14 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import { styled, useTheme } from '@mui/material/styles';
+import ThemeSelector from './ThemeSelector';
 
 const drawerWidth = 220;
 
 const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Ventas', icon: <ShoppingCartIcon />, path: '/ventas' },
+    { text: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
     { text: 'Usuarios', icon: <PeopleIcon />, path: '/usuarios', admin: true },
     { text: 'Inventario', icon: <InventoryIcon />, path: '/inventario' },
     { text: 'Reportes', icon: <AssessmentIcon />, path: '/reportes' },
@@ -53,7 +56,7 @@ const SidebarPaper = styled('div')(({ theme, collapsed }) => ({
     zIndex: 2,
 }));
 
-const MainLayout = ({ children, darkMode, setDarkMode }) => {
+const MainLayout = ({ children, darkMode, setDarkMode, currentTheme, onThemeChange, onModeChange }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const user = authService.getCurrentUser();
@@ -144,8 +147,18 @@ const MainLayout = ({ children, darkMode, setDarkMode }) => {
             <Box sx={{ pb: 2, px: collapsed ? 0 : 2 }}>
                 <Divider sx={{ mb: 1, borderColor: theme.palette.mode === 'dark' ? '#232e43' : '#e3eaf5' }} />
                 <List sx={{ gap: collapsed ? 1.5 : 0 }}>
+                    {!collapsed && (
+                        <Box sx={{ mb: 1 }}>
+                            <ThemeSelector
+                                currentTheme={currentTheme}
+                                onThemeChange={onThemeChange}
+                                onModeChange={onModeChange}
+                            />
+                        </Box>
+                    )}
+
                     <Tooltip title={collapsed ? (darkMode ? 'Modo claro' : 'Modo oscuro') : ''} placement="right">
-                        <ListItem button onClick={() => setDarkMode(!darkMode)} sx={{ justifyContent: 'center', borderRadius: 2.5, mb: 1, color: theme.palette.mode === 'dark' ? '#b0c4de' : '#1976d2', py: collapsed ? 1.2 : 1, '&:hover': { background: theme.palette.mode === 'dark' ? 'rgba(26, 60, 110, 0.18)' : 'rgba(22, 120, 250, 0.10)' } }}>
+                        <ListItem button onClick={onModeChange} sx={{ justifyContent: 'center', borderRadius: 2.5, mb: 1, color: theme.palette.mode === 'dark' ? '#b0c4de' : '#1976d2', py: collapsed ? 1.2 : 1, '&:hover': { background: theme.palette.mode === 'dark' ? 'rgba(26, 60, 110, 0.18)' : 'rgba(22, 120, 250, 0.10)' } }}>
                             <ListItemIcon sx={{ minWidth: 0, justifyContent: 'center', color: theme.palette.mode === 'dark' ? '#3a8dde' : '#1976d2', fontSize: collapsed ? 30 : 24 }}>{darkMode ? <Brightness7Icon /> : <Brightness4Icon />}</ListItemIcon>
                             {!collapsed && <ListItemText primary={darkMode ? 'Modo claro' : 'Modo oscuro'} />}
                         </ListItem>
